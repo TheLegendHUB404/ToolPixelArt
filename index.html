@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Art Resizer & Optimizer | Herramienta Manual</title>
+    
+    <!-- [INSERTA_TU_CÓDIGO_ADSENSE_AQUÍ] -->
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            750: '#2d3748',
+                            850: '#1a202c',
+                            900: '#111827',
+                            950: '#0b0f19',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Asegura que el canvas muestre los píxeles duros al escalar en la interfaz */
+        .pixelated-render {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+        
+        /* Fondo ajedrezado para visualizar transparencias */
+        .checkered-bg {
+            background-color: #1f2937;
+            background-image: 
+                linear-gradient(45deg, #374151 25%, transparent 25%), 
+                linear-gradient(-45deg, #374151 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #374151 75%), 
+                linear-gradient(-45deg, transparent 75%, #374151 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        #cropCanvas {
+            cursor: crosshair;
+            touch-action: none; /* Previene scroll al dibujar en móvil */
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-200 font-sans min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+    <!-- Header -->
+    <header class="bg-gray-900 border-b border-gray-800 py-6 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 class="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" class="text-indigo-400"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                Pixel Art Optimizador
+            </h1>
+            <p class="mt-1 text-sm text-gray-400">Redimensionador manual estricto. Sin IA, sin antialiasing, 100% bordes duros.</p>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- Left Column: Upload & Crop -->
+        <div class="flex flex-col gap-4">
+            <div class="bg-gray-900 p-5 rounded-xl border border-gray-800 shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                        1. Sube y Recorta
+                    </h2>
+                    <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer hover:text-white transition-colors">
+                        <input type="checkbox" id="forceSquare" class="rounded border-gray-700 text-indigo-600 focus:ring-indigo-600 bg-gray-800 cursor-pointer">
+                        Forzar Cuadrado
+                    </label>
+                </div>
+                
+                <!-- Upload Area -->
+                <label id="dropZone" class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer bg-gray-850 hover:bg-gray-800 hover:border-indigo-500 transition-all">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg class="w-8 h-8 mb-3 text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
+                        <p class="mb-2 text-sm text-gray-400"><span class="font-semibold text-indigo-400">Haz clic para subir</span> o arrastra una imagen</p>
+                        <p class="text-xs text-gray-500">PNG, JPG, WEBP</p>
+                    </div>
+                    <input id="fileInput" type="file" class="hidden" accept="image/png, image/jpeg, image/webp" />
+                </label>
+
+                <!-- Crop Canvas Container (Hidden by default) -->
+                <div id="cropContainer" class="mt-4 hidden relative w-full overflow-hidden rounded-lg bg-gray-950 border border-gray-800 select-none">
+                    <p class="text-xs text-center py-2 text-gray-400 bg-gray-900 border-b border-gray-800">Haz clic y arrastra para definir el recorte</p>
+                    <canvas id="cropCanvas" class="w-full h-auto block"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Settings, Result & Affiliate -->
+        <div class="flex flex-col gap-4">
+            <div class="bg-gray-900 p-5 rounded-xl border border-gray-800 shadow-lg">
+                <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    2. Configuración y Resultado
+                </h2>
+
+                <!-- Resolution Selection -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-400 mb-2">Dimensión Máxima (Píxeles)</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="resolution" value="16" class="peer hidden">
+                            <div class="text-center py-2 px-3 border border-gray-700 rounded-md peer-checked:bg-indigo-600 peer-checked:border-indigo-500 peer-checked:text-white text-gray-400 hover:bg-gray-800 transition-colors text-sm font-medium">16x16</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="resolution" value="32" class="peer hidden" checked>
+                            <div class="text-center py-2 px-3 border border-gray-700 rounded-md peer-checked:bg-indigo-600 peer-checked:border-indigo-500 peer-checked:text-white text-gray-400 hover:bg-gray-800 transition-colors text-sm font-medium">32x32</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="resolution" value="64" class="peer hidden">
+                            <div class="text-center py-2 px-3 border border-gray-700 rounded-md peer-checked:bg-indigo-600 peer-checked:border-indigo-500 peer-checked:text-white text-gray-400 hover:bg-gray-800 transition-colors text-sm font-medium">64x64</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="resolution" value="128" class="peer hidden">
+                            <div class="text-center py-2 px-3 border border-gray-700 rounded-md peer-checked:bg-indigo-600 peer-checked:border-indigo-500 peer-checked:text-white text-gray-400 hover:bg-gray-800 transition-colors text-sm font-medium">128x128</div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Process Button -->
+                <button id="processBtn" disabled class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-6 flex justify-center items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    Generar Pixel Art
+                </button>
+
+                <!-- Result Preview -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-400 mb-2">Vista Previa (Ampliación Pura)</label>
+                    <div class="w-full aspect-square checkered-bg rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden">
+                        <canvas id="previewCanvas" class="pixelated-render w-full h-full object-contain hidden"></canvas>
+                        <span id="previewPlaceholder" class="text-gray-600 text-sm">El resultado aparecerá aquí</span>
+                    </div>
+                </div>
+
+                <!-- Download Buttons -->
+                <div class="grid grid-cols-1 gap-3">
+                    <button id="downloadBtn" disabled class="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Descargar Imagen (Resolución Original)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Revenue Stack: Pillar 2 (Affiliate Banner High-Ticket) -->
+            <a href="" target="_blank" rel="noopener noreferrer" class="group block mt-2 bg-gradient-to-r from-gray-900 to-gray-850 border border-gray-800 rounded-xl p-4 shadow-lg hover:border-indigo-500/50 transition-all duration-300 relative overflow-hidden">
+                <!-- Decorative background glow -->
+                <div class="absolute -top-10 -right-10 w-32 h-32 bg-blue-600 rounded-full blur-3xl opacity-10 group-hover:opacity-20 transition-opacity"></div>
+                
+                <div class="flex items-center justify-between relative z-10">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-gray-950 p-2 rounded-lg border border-gray-800 shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">¿Creando un juego o web app?</p>
+                            <p class="text-xs text-gray-400 mt-0.5">Obtén <span class="text-blue-400 font-bold">$100 de crédito</span> en Vultr para alojarlo.</p>
+                        </div>
+                    </div>
+                    <div class="text-gray-500 group-hover:text-blue-400 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </div>
+                </div>
+            </a>
+            
+        </div>
+    </main>
+
+    <!-- Internal Logic (Stateless / Pure Math) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Elementos del DOM
+            const fileInput = document.getElementById('fileInput');
+            const dropZone = document.getElementById('dropZone');
+            const cropContainer = document.getElementById('cropContainer');
+            const cropCanvas = document.getElementById('cropCanvas');
+            const ctxCrop = cropCanvas.getContext('2d');
+            const processBtn = document.getElementById('processBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const previewCanvas = document.getElementById('previewCanvas');
+            const ctxPreview = previewCanvas.getContext('2d', { willReadFrequently: true });
+            const previewPlaceholder = document.getElementById('previewPlaceholder');
+            const forceSquareCheckbox = document.getElementById('forceSquare');
+
+            // Variables de Estado
+            let sourceImg = null;
+            let cropRect = { x: 0, y: 0, w: 0, h: 0 };
+            let isDragging = false;
+            let dragStart = { x: 0, y: 0 };
+            let internalCanvas = document.createElement('canvas'); // Mantiene la data real
+            let renderScale = 1;
+
+            // Manejadores de Archivos (Drag & Drop + Click)
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500', 'bg-gray-800');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-indigo-500', 'bg-gray-800');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500', 'bg-gray-800');
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+
+            function handleFile(file) {
+                if (!file.type.match('image.*')) return alert('Por favor, sube una imagen válida.');
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    sourceImg = new Image();
+                    sourceImg.onload = () => {
+                        initCropCanvas();
+                        processBtn.disabled = false;
+                    };
+                    sourceImg.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            // Inicializar el área de recorte
+            function initCropCanvas() {
+                // Ocultar zona de carga visual, mostrar canvas
+                dropZone.style.display = 'none';
+                cropContainer.classList.remove('hidden');
+
+                // Ajustar resolución del canvas para que encaje en el contenedor sin perder calidad
+                const maxWidth = cropContainer.clientWidth;
+                renderScale = Math.min(1, maxWidth / sourceImg.width);
+                
+                cropCanvas.width = sourceImg.width * renderScale;
+                cropCanvas.height = sourceImg.height * renderScale;
+
+                // Definir un recorte inicial (toda la imagen con un pequeño margen)
+                const marginX = sourceImg.width * 0.1;
+                const marginY = sourceImg.height * 0.1;
+                cropRect = {
+                    x: marginX,
+                    y: marginY,
+                    w: sourceImg.width - (marginX * 2),
+                    h: sourceImg.height - (marginY * 2)
+                };
+
+                drawCropUI();
+            }
+
+            // Lógica de dibujo del UI de recorte
+            function drawCropUI() {
+                if (!sourceImg) return;
+                
+                // 1. Dibujar imagen original escalada
+                ctxCrop.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+                ctxCrop.drawImage(sourceImg, 0, 0, cropCanvas.width, cropCanvas.height);
+
+                // 2. Dibujar overlay oscuro semi-transparente
+                ctxCrop.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctxCrop.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+
+                // 3. Limpiar la zona de recorte para que se vea brillante
+                const cx = cropRect.x * renderScale;
+                const cy = cropRect.y * renderScale;
+                const cw = cropRect.w * renderScale;
+                const ch = cropRect.h * renderScale;
+                
+                ctxCrop.clearRect(cx, cy, cw, ch);
+                
+                // 4. Volver a dibujar esa parte de la imagen para garantizar que no haya fondo extraño
+                ctxCrop.drawImage(
+                    sourceImg, 
+                    cropRect.x, cropRect.y, cropRect.w, cropRect.h,
+                    cx, cy, cw, ch
+                );
+
+                // 5. Dibujar bordes de recorte interactivos
+                ctxCrop.strokeStyle = '#6366f1'; // Indigo 500
+                ctxCrop.lineWidth = 2;
+                ctxCrop.strokeRect(cx, cy, cw, ch);
+                
+                // Esquinas para dar feedback visual
+                ctxCrop.fillStyle = '#fff';
+                const corners = [
+                    [cx, cy], [cx + cw, cy], 
+                    [cx, cy + ch], [cx + cw, cy + ch]
+                ];
+                corners.forEach(p => {
+                    ctxCrop.fillRect(p[0] - 4, p[1] - 4, 8, 8);
+                });
+            }
+
+            // Interacción del Ratón/Touch para dibujar recorte nuevo
+            function getPointerPos(e) {
+                const rect = cropCanvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: (clientX - rect.left) / renderScale,
+                    y: (clientY - rect.top) / renderScale
+                };
+            }
+
+            cropCanvas.addEventListener('mousedown', startDrag);
+            cropCanvas.addEventListener('touchstart', startDrag, {passive: false});
+            
+            function startDrag(e) {
+                if (!sourceImg) return;
+                if(e.type === 'touchstart') e.preventDefault();
+                isDragging = true;
+                const pos = getPointerPos(e);
+                dragStart = pos;
+                cropRect = { x: pos.x, y: pos.y, w: 0, h: 0 };
+                drawCropUI();
+            }
+
+            window.addEventListener('mousemove', drag);
+            window.addEventListener('touchmove', drag, {passive: false});
+
+            function drag(e) {
+                if (!isDragging) return;
+                if(e.type === 'touchmove' && e.cancelable) e.preventDefault();
+                
+                let pos = getPointerPos(e);
+                
+                // Limitar a los bordes de la imagen
+                if (pos.x < 0) pos.x = 0;
+                if (pos.y < 0) pos.y = 0;
+                if (pos.x > sourceImg.width) pos.x = sourceImg.width;
+                if (pos.y > sourceImg.height) pos.y = sourceImg.height;
+
+                let startX = Math.min(dragStart.x, pos.x);
+                let startY = Math.min(dragStart.y, pos.y);
+                let width = Math.abs(pos.x - dragStart.x);
+                let height = Math.abs(pos.y - dragStart.y);
+
+                // Lógica para forzar cuadrado
+                if (forceSquareCheckbox && forceSquareCheckbox.checked) {
+                    let size = Math.min(width, height);
+                    startX = dragStart.x < pos.x ? dragStart.x : dragStart.x - size;
+                    startY = dragStart.y < pos.y ? dragStart.y : dragStart.y - size;
+                    width = size;
+                    height = size;
+                }
+
+                cropRect = { x: startX, y: startY, w: width, h: height };
+                drawCropUI();
+            }
+
+            window.addEventListener('mouseup', endDrag);
+            window.addEventListener('touchend', endDrag);
+
+            function endDrag() {
+                if (!isDragging) return;
+                isDragging = false;
+                // Si hizo click sin arrastrar, mantener un área mínima o revertir
+                if (cropRect.w < 10 || cropRect.h < 10) {
+                    const marginX = sourceImg.width * 0.1;
+                    const marginY = sourceImg.height * 0.1;
+                    cropRect = {
+                        x: marginX,
+                        y: marginY,
+                        w: sourceImg.width - (marginX * 2),
+                        h: sourceImg.height - (marginY * 2)
+                    };
+                    drawCropUI();
+                }
+            }
+
+            // --- LÓGICA DE PROCESAMIENTO MATEMÁTICO PURO (SIN IA) ---
+            processBtn.addEventListener('click', generatePixelArt);
+
+            function generatePixelArt() {
+                if (!sourceImg || cropRect.w === 0 || cropRect.h === 0) return;
+
+                // 1. Obtener la dimensión máxima objetivo
+                const targetMax = parseInt(document.querySelector('input[name="resolution"]:checked').value);
+
+                // Asegurar dimensiones enteras para evitar errores de desfase de píxeles
+                const cropX = Math.round(cropRect.x);
+                const cropY = Math.round(cropRect.y);
+                const cropW = Math.round(cropRect.w);
+                const cropH = Math.round(cropRect.h);
+
+                // Calcular ancho y alto finales manteniendo la proporción
+                let targetW = targetMax;
+                let targetH = targetMax;
+                
+                if (cropW > cropH) {
+                    targetH = Math.max(1, Math.round(targetMax * (cropH / cropW)));
+                } else if (cropH > cropW) {
+                    targetW = Math.max(1, Math.round(targetMax * (cropW / cropH)));
+                }
+
+                // 2. Extraer la porción original recortada (Resolución Real completa)
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = cropW;
+                tempCanvas.height = cropH;
+                const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                tempCtx.drawImage(
+                    sourceImg, 
+                    cropX, cropY, cropW, cropH,
+                    0, 0, cropW, cropH
+                );
+
+                // Obtener datos crudos
+                const sourceData = tempCtx.getImageData(0, 0, cropW, cropH);
+                const sourceWidth = sourceData.width;
+                
+                // 3. Preparar canvas interno para la resolución final estricta
+                internalCanvas.width = targetW;
+                internalCanvas.height = targetH;
+                const internalCtx = internalCanvas.getContext('2d');
+                const targetData = internalCtx.createImageData(targetW, targetH);
+
+                // 4. Algoritmo Nearest Neighbor Puro Independiente por Eje
+                const ratioX = cropW / targetW;
+                const ratioY = cropH / targetH;
+
+                for (let y = 0; y < targetH; y++) {
+                    for (let x = 0; x < targetW; x++) {
+                        // Calcular el píxel de origen correspondiente
+                        const srcX = Math.floor(x * ratioX);
+                        const srcY = Math.floor(y * ratioY);
+                        
+                        // IMPORTANTE: Usar sourceWidth en lugar del flotante
+                        const srcIndex = (srcY * sourceWidth + srcX) * 4;
+                        const destIndex = (y * targetW + x) * 4;
+
+                        // Copiar R, G, B, A
+                        targetData.data[destIndex] = sourceData.data[srcIndex];         // R
+                        targetData.data[destIndex + 1] = sourceData.data[srcIndex + 1]; // G
+                        targetData.data[destIndex + 2] = sourceData.data[srcIndex + 2]; // B
+                        targetData.data[destIndex + 3] = sourceData.data[srcIndex + 3]; // A
+                    }
+                }
+
+                // Escribir datos calculados al canvas interno
+                internalCtx.putImageData(targetData, 0, 0);
+
+                // 5. Renderizar en el UI (Visualización ampliada)
+                previewPlaceholder.classList.add('hidden');
+                previewCanvas.classList.remove('hidden');
+                
+                // Habilitar rendering duro en el canvas visual
+                previewCanvas.width = targetW;
+                previewCanvas.height = targetH;
+                ctxPreview.imageSmoothingEnabled = false; // Forzar sin antialiasing
+                ctxPreview.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                ctxPreview.drawImage(internalCanvas, 0, 0);
+
+                // Habilitar descarga
+                downloadBtn.disabled = false;
+            }
+
+            // Descargar el arte (Resolución estricta, tal como piden los motores de juego o artistas)
+            downloadBtn.addEventListener('click', () => {
+                // Exportar el canvas interno que tiene el tamaño exacto
+                const dataURL = internalCanvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataURL;
+                const finalW = internalCanvas.width;
+                const finalH = internalCanvas.height;
+                a.download = `pixelart_${finalW}x${finalH}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            });
+        });
+    </script>
+</body>
+</html>
